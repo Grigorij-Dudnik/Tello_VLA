@@ -15,25 +15,32 @@ PORT = 5005
 
 
 def recv_msg(conn):
-    hdr = b""
-    while len(hdr) < 4:
-        chunk = conn.recv(4 - len(hdr))
-        if not chunk:
-            return None
-        hdr += chunk
-    data = b""
-    size = int.from_bytes(hdr, "big")
-    while len(data) < size:
-        chunk = conn.recv(size - len(data))
-        if not chunk:
-            return None
-        data += chunk
-    return pickle.loads(data)
+    try:
+        hdr = b""
+        while len(hdr) < 4:
+            chunk = conn.recv(4 - len(hdr))
+            if not chunk:
+                return None
+            hdr += chunk
+        data = b""
+        size = int.from_bytes(hdr, "big")
+        while len(data) < size:
+            chunk = conn.recv(size - len(data))
+            if not chunk:
+                return None
+            data += chunk
+        return pickle.loads(data)
+    except ConnectionResetError:
+        return None
 
 
 def send_msg(conn, msg):
-    data = pickle.dumps(msg)
-    conn.sendall(len(data).to_bytes(4, "big") + data)
+    try:
+        data = pickle.dumps(msg)
+        conn.sendall(len(data).to_bytes(4, "big") + data)
+        return True
+    except (BrokenPipeError, ConnectionResetError):
+        return False
 
 
 s = socket.socket()
@@ -48,7 +55,10 @@ pre, post = make_pre_post_processors(policy_cfg=cfg, pretrained_path=POLICY, pre
 device = get_safe_torch_device(DEVICE)
 
 while True:
-    send_msg(conn, "ready")
+    if not send_msg(conn, "ready"):
+        conn.close()
+        conn, _ = s.accept()
+        continue
     while True:
         obs = recv_msg(conn)
         if obs is None:
@@ -65,6 +75,7 @@ while True:
             postprocessor=post,
             use_amp=cfg.use_amp,
         ).squeeze().float().numpy()
-        send_msg(conn, np.clip(action, -1, 1))
+        if not send_msg(conn, np.clip(action, -1, 1)):
+            break
     conn.close()
     conn, _ = s.accept()
