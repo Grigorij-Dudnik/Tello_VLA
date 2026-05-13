@@ -1,6 +1,7 @@
 import pickle
 import socket
 import time
+import cv2
 import numpy as np
 from lerobot.configs.policies import PreTrainedConfig
 from lerobot.policies.factory import get_policy_class, make_pre_post_processors
@@ -44,9 +45,11 @@ def send_msg(conn, msg):
 
 
 s = socket.socket()
+s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 s.bind(("0.0.0.0", PORT))
 s.listen(1)
 conn, _ = s.accept()
+conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
 cfg = PreTrainedConfig.from_pretrained(POLICY)
 cfg.device = DEVICE
@@ -60,13 +63,17 @@ while True:
         conn, _ = s.accept()
         continue
     while True:
+        recv_start = time.perf_counter()
         obs = recv_msg(conn)
         if obs is None:
             break
+        jpg = np.frombuffer(obs["jpg"], dtype=np.uint8)
+        rgb = cv2.cvtColor(cv2.imdecode(jpg, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
+        recv_time = time.perf_counter() - recv_start
         start_time = time.perf_counter()
         action = predict_action(
             observation={
-                "observation.images.camera_front": obs["rgb"],
+                "observation.images.camera_front": rgb,
                 "observation.state": np.array([obs["height"]], dtype=np.float32),
             },
             policy=policy,
@@ -76,8 +83,11 @@ while True:
             postprocessor=post,
             use_amp=cfg.use_amp,
         ).squeeze().float().numpy()
-        print(f"Inference time: {time.perf_counter() - start_time:.3f}s")
+        infer_time = time.perf_counter() - start_time
+        send_start = time.perf_counter()
         if not send_msg(conn, np.clip(action, -1, 1)):
             break
+        print(f"recv+decode {recv_time:.3f}s infer {infer_time:.3f}s send {time.perf_counter() - send_start:.3f}s shape {rgb.shape}")
     conn.close()
     conn, _ = s.accept()
+    conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
