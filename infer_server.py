@@ -1,6 +1,6 @@
 import pickle
 import socket
-
+import time
 import numpy as np
 from lerobot.configs.policies import PreTrainedConfig
 from lerobot.policies.factory import get_policy_class, make_pre_post_processors
@@ -63,6 +63,7 @@ while True:
         obs = recv_msg(conn)
         if obs is None:
             break
+        start_time = time.perf_counter()
         action = predict_action(
             observation={
                 "observation.images.camera_front": obs["rgb"],
@@ -75,6 +76,7 @@ while True:
             postprocessor=post,
             use_amp=cfg.use_amp,
         ).squeeze().float().numpy()
+        print(f"Inference time: {time.perf_counter() - start_time:.3f}s")
         if not send_msg(conn, np.clip(action, -1, 1)):
             break
     conn.close()
