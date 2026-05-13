@@ -13,31 +13,58 @@ TASK = "Fly to the red apple"
 DEVICE = "cuda"
 PORT = 5005
 
+
+def recv_msg(conn):
+    hdr = b""
+    while len(hdr) < 4:
+        chunk = conn.recv(4 - len(hdr))
+        if not chunk:
+            return None
+        hdr += chunk
+    data = b""
+    size = int.from_bytes(hdr, "big")
+    while len(data) < size:
+        chunk = conn.recv(size - len(data))
+        if not chunk:
+            return None
+        data += chunk
+    return pickle.loads(data)
+
+
+def send_msg(conn, msg):
+    data = pickle.dumps(msg)
+    conn.sendall(len(data).to_bytes(4, "big") + data)
+
+
+s = socket.socket()
+s.bind(("0.0.0.0", PORT))
+s.listen(1)
+conn, _ = s.accept()
+
 cfg = PreTrainedConfig.from_pretrained(POLICY)
 cfg.device = DEVICE
 policy = get_policy_class(cfg.type).from_pretrained(POLICY, config=cfg).to(DEVICE).eval()
 pre, post = make_pre_post_processors(policy_cfg=cfg, pretrained_path=POLICY, preprocessor_overrides={"device_processor": {"device": DEVICE}})
 device = get_safe_torch_device(DEVICE)
 
-s = socket.socket()
-s.bind(("0.0.0.0", PORT))
-s.listen(1)
-conn, _ = s.accept()
-f = conn.makefile("rwb")
-
 while True:
-    obs = pickle.load(f)
-    action = predict_action(
-        observation={
-            "observation.images.camera_front": obs["rgb"],
-            "observation.state": np.array([obs["height"]], dtype=np.float32),
-        },
-        policy=policy,
-        device=device,
-        task=TASK,
-        preprocessor=pre,
-        postprocessor=post,
-        use_amp=cfg.use_amp,
-    ).squeeze().float().numpy()
-    pickle.dump(np.clip(action, -1, 1), f)
-    f.flush()
+    send_msg(conn, "ready")
+    while True:
+        obs = recv_msg(conn)
+        if obs is None:
+            break
+        action = predict_action(
+            observation={
+                "observation.images.camera_front": obs["rgb"],
+                "observation.state": np.array([obs["height"]], dtype=np.float32),
+            },
+            policy=policy,
+            device=device,
+            task=TASK,
+            preprocessor=pre,
+            postprocessor=post,
+            use_amp=cfg.use_amp,
+        ).squeeze().float().numpy()
+        send_msg(conn, np.clip(action, -1, 1))
+    conn.close()
+    conn, _ = s.accept()
