@@ -9,17 +9,17 @@ from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 
 DATASET_REPO = "Grigorij/Tello_red_apple"
-ROOT = "dataset/Tello_red_apple"
-TASK = "Fly to the red apple"
+ROOT = "dataset/Tello_multifruit"
+TASK = "Approach red apple"
 FPS = 30
-SPEED = 35
+SPEED = 25
 
 features = {
     "observation.images.camera_front": {"dtype": "video", "shape": (480, 640, 3), "names": ["height", "width", "channels"]},
     "observation.state": {"dtype": "float32", "shape": (1,), "names": ["height"]},
     "action": {"dtype": "float32", "shape": (4,), "names": ["forward", "right", "up", "yaw"]},
 }
-pressed = lambda c: int(bool(windll.user32.GetAsyncKeyState(ord(c)) & 0x8000))
+pressed = lambda c: int(bool(windll.user32.GetAsyncKeyState(c if isinstance(c, int) else ord(c)) & 0x8000))
 
 shutil.rmtree(ROOT, ignore_errors=True)
 dataset = LeRobotDataset.create(DATASET_REPO, fps=FPS, features=features, root=ROOT)
@@ -54,7 +54,7 @@ while True:
 
     forward = pressed("W") - pressed("S")
     right = pressed("D") - pressed("A")
-    up = pressed("R") - pressed("F")
+    up = pressed(0x26) - pressed(0x28)
     yaw = pressed("E") - pressed("Q")
     tello.send_command_without_return(f"rc {SPEED * right} {SPEED * forward} {SPEED * up} {SPEED * yaw}")
     if recording:

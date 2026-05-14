@@ -9,8 +9,8 @@ from lerobot.utils.control_utils import predict_action
 from lerobot.utils.device_utils import get_safe_torch_device
 
 
-POLICY = "Grigorij/xvla_Red_apple_sum"
-TASK = "Fly to the red apple"
+POLICY = "Grigorij/xvla_Tello_multifruit_sum"
+TASK = "Approach red apple"
 DEVICE = "cuda"
 PORT = 5005
 
