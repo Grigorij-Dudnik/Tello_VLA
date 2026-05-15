@@ -1,4 +1,6 @@
 import pickle
+import os
+import shutil
 import socket
 import time
 
@@ -8,7 +10,7 @@ from djitellopy import Tello
 
 SERVER = "greg-pc"
 PORT = 5005
-FPS = 30
+FPS = 25
 SPEED = 25
 
 
@@ -28,6 +30,18 @@ def send_msg(conn, msg):
     conn.sendall(len(data).to_bytes(4, "big") + data)
 
 
+def save_photo(bgr, state, folder="infer_client_photos"):
+    now = time.perf_counter()
+    if now - state[0] >= 1.5:
+        cv2.imwrite(f"{folder}/{state[1]:06d}.jpg", bgr)
+        state[:] = [now, state[1] + 1]
+
+
+photo_state = [0, 0]
+
+# shutil.rmtree("infer_client_photos", ignore_errors=True)
+# os.makedirs("infer_client_photos")
+
 s = socket.socket()
 s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 s.connect((SERVER, PORT))
@@ -45,15 +59,17 @@ try:
     while True:
         loop_start = time.perf_counter()
         rgb = cv2.resize(frames.frame, (640, 480))
+        bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
         encode_start = time.perf_counter()
-        _, jpg = cv2.imencode(".jpg", rgb, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+        _, jpg = cv2.imencode(".jpg", bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
         encode_time = time.perf_counter() - encode_start
 
-        # cv2.imshow("server jpg", cv2.imdecode(jpg, cv2.IMREAD_COLOR))
-        # cv2.waitKey(1)
+        cv2.imshow("server jpg", cv2.imdecode(jpg, cv2.IMREAD_COLOR))
+        cv2.waitKey(1)
+        # save_photo(bgr, photo_state)
 
         send_start = time.perf_counter()
-        send_msg(s, {"jpg": jpg.tobytes(), "height": tello.get_height()})
+        send_msg(s, {"jpg": jpg.tobytes(), "height": tello.get_distance_tof()})
         send_time = time.perf_counter() - send_start
         wait_start = time.perf_counter()
         forward, right, up, yaw = recv_msg(s)
@@ -66,3 +82,4 @@ except KeyboardInterrupt:
     tello.land()
     s.close()
     tello.end()
+    cv2.destroyAllWindows()

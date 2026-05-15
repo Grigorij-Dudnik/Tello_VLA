@@ -8,10 +8,10 @@ from djitellopy import Tello
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 
-DATASET_REPO = "Grigorij/Tello_red_apple"
-ROOT = "dataset/Tello_multifruit"
-TASK = "Approach red apple"
-FPS = 30
+DATASET_REPO = "Grigorij/Tello_wall_scan_"
+ROOT = "dataset/Tello_wall_scan_"
+TASK = "Perform wall scan"
+FPS = 25
 SPEED = 25
 
 features = {
@@ -36,6 +36,8 @@ episode_frames = 0
 while True:
     rgb = cv2.resize(frames.frame, (640, 480))
     bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    height = tello.get_distance_tof()
+    cv2.putText(bgr, f"height {height} cm", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     cv2.imshow("tello keyboard recorder", bgr)
     cv2.waitKey(1)
 
@@ -60,7 +62,7 @@ while True:
     if recording:
         dataset.add_frame({
             "observation.images.camera_front": rgb,
-            "observation.state": np.array([tello.get_height()], dtype=np.float32),
+            "observation.state": np.array([height], dtype=np.float32),
             "action": np.array([forward, right, up, yaw], dtype=np.float32),
             "task": TASK,
         })
