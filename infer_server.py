@@ -9,7 +9,7 @@ from lerobot.utils.control_utils import predict_action
 from lerobot.utils.device_utils import get_safe_torch_device
 
 
-POLICY = "Grigorij/xvla_Tello_multifruit_sum"
+POLICY = "Grigorij/molmo_Tello_multifruit_sum"
 TASK = "Approach red apple"
 DEVICE = "cuda"
 PORT = 5005
@@ -53,6 +53,9 @@ conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
 cfg = PreTrainedConfig.from_pretrained(POLICY)
 cfg.device = DEVICE
+# for molmo only:
+cfg.inference_action_mode = "continuous"
+
 policy = get_policy_class(cfg.type).from_pretrained(POLICY, config=cfg).to(DEVICE).eval()
 pre, post = make_pre_post_processors(policy_cfg=cfg, pretrained_path=POLICY, preprocessor_overrides={"device_processor": {"device": DEVICE}})
 device = get_safe_torch_device(DEVICE)
