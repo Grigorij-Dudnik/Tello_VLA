@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from lerobot.configs.policies import PreTrainedConfig
 from lerobot.policies.factory import get_policy_class, make_pre_post_processors
-from lerobot.utils.control_utils import predict_action
+from lerobot.common.control_utils import predict_action
 from lerobot.utils.device_utils import get_safe_torch_device
 
 
